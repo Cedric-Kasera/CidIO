@@ -46,6 +46,38 @@ interface ChatCompletionState {
   attachedFiles: AttachedFile[];
 }
 
+const getScreenshotErrorMessage = (error: unknown) => {
+  const fallback = "Failed to capture screenshot. Please try again.";
+
+  if (typeof error === "string" && error.trim()) {
+    return `Failed to capture screenshot: ${error}`;
+  }
+
+  if (error && typeof error === "object") {
+    if ("message" in error && typeof error.message === "string" && error.message.trim()) {
+      return `Failed to capture screenshot: ${error.message}`;
+    }
+
+    if ("cause" in error && typeof error.cause === "string" && error.cause.trim()) {
+      return `Failed to capture screenshot: ${error.cause}`;
+    }
+  }
+
+  return fallback;
+};
+
+const isScreenshotCancelled = (error: unknown) => {
+  const message =
+    typeof error === "string"
+      ? error
+      : error && typeof error === "object" && "message" in error
+        ? String(error.message ?? "")
+        : "";
+
+  const normalized = message.toLowerCase();
+  return normalized.includes("cancelled") || normalized.includes("canceled");
+};
+
 export const useChatCompletion = (
   conversationId: string,
   messages: ChatConversation | null,
@@ -567,7 +599,7 @@ export const useChatCompletion = (
             setState((prev) => ({
               ...prev,
               error:
-                "Screen Recording permission required. Please enable it by going to System Settings > Privacy & Security > Screen & System Audio Recording. If you don't see Pluely in the list, click the '+' button to add it. If it's already listed, make sure it's enabled. Then restart the app.",
+                "Screen Recording permission required. Please enable it by going to System Settings > Privacy & Security > Screen & System Audio Recording. If you don't see CidIO in the list, click the '+' button to add it. If it's already listed, make sure it's enabled. Then restart the app.",
             }));
             setIsScreenshotLoading(false);
             screenshotInitiatedByThisContext.current = false;
@@ -605,9 +637,20 @@ export const useChatCompletion = (
         await invoke("start_screen_capture");
       }
     } catch (error) {
+      console.error("Screenshot capture failed:", error);
+      if (isScreenshotCancelled(error)) {
+        setState((prev) => ({
+          ...prev,
+          error: null,
+        }));
+        setIsScreenshotLoading(false);
+        isProcessingScreenshotRef.current = false;
+        screenshotInitiatedByThisContext.current = false;
+        return;
+      }
       setState((prev) => ({
         ...prev,
-        error: "Failed to capture screenshot. Please try again.",
+        error: getScreenshotErrorMessage(error),
       }));
       isProcessingScreenshotRef.current = false;
       screenshotInitiatedByThisContext.current = false;

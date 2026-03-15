@@ -78,16 +78,16 @@ export interface UseCompletionReturn {
   loadConversation: (conversation: any) => void;
   /** Function to start a new conversation (clears current state) */
   startNewConversation: () => void;
+  /** Whether the persistent chat panel is open */
+  chatPanelOpen: boolean;
+  /** Function to control the persistent chat panel visibility */
+  setChatPanelOpen: Dispatch<SetStateAction<boolean>>;
 
   // UI state management
   /** Whether the message history modal/panel is open */
   messageHistoryOpen: boolean;
   /** Function to control message history panel visibility */
   setMessageHistoryOpen: Dispatch<SetStateAction<boolean>>;
-  /** Whether keep engaged mode is active (keeps popover open for continuous conversation) */
-  keepEngaged: boolean;
-  /** Function to toggle keep engaged mode */
-  setKeepEngaged: Dispatch<SetStateAction<boolean>>;
 
   // Screenshot functionality
   /** Current screenshot configuration settings */

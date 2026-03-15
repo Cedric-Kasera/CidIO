@@ -1,6 +1,7 @@
 import { useApp, useTheme } from "@/contexts";
 import { Header, Label, Slider, Button } from "@/components";
 import { MonitorIcon, MoonIcon, SunIcon } from "lucide-react";
+import type { SystemColor } from "@/contexts";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -8,8 +9,59 @@ import {
   DropdownMenuTrigger,
 } from "@/components";
 
+const colorOptions: {
+  value: SystemColor;
+  label: string;
+  description: string;
+  swatch: string;
+}[] = [
+  {
+    value: "default",
+    label: "Default",
+    description: "Original app palette",
+    swatch: "linear-gradient(135deg, #171717 0%, #737373 100%)",
+  },
+  {
+    value: "red",
+    label: "Red",
+    description: "Neon rose glow",
+    swatch: "linear-gradient(135deg, #ff5c7a 0%, #ff8a70 100%)",
+  },
+  {
+    value: "yellow",
+    label: "Yellow",
+    description: "Electric citrus",
+    swatch: "linear-gradient(135deg, #f5ff66 0%, #ffd84a 100%)",
+  },
+  {
+    value: "lime",
+    label: "Lime Green",
+    description: "Hyper lime pop",
+    swatch: "linear-gradient(135deg, #bfff57 0%, #7dff77 100%)",
+  },
+  {
+    value: "orange",
+    label: "Orange",
+    description: "Neon amber heat",
+    swatch: "linear-gradient(135deg, #ff7a1a 0%, #ffb347 100%)",
+  },
+  {
+    value: "indigo",
+    label: "Purple / Indigo",
+    description: "Electric violet blue",
+    swatch: "linear-gradient(135deg, #8262ff 0%, #58a6ff 100%)",
+  },
+];
+
 export const Theme = () => {
-  const { theme, transparency, setTheme, onSetTransparency } = useTheme();
+  const {
+    theme,
+    systemColor,
+    transparency,
+    setTheme,
+    setSystemColor,
+    onSetTransparency,
+  } = useTheme();
   const { hasActiveLicense } = useApp();
 
   return (
@@ -83,6 +135,53 @@ export const Theme = () => {
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
+        </div>
+      </div>
+
+      {/* System Color */}
+      <div
+        className={`space-y-2 ${
+          hasActiveLicense ? "" : "opacity-60 pointer-events-none"
+        }`}
+      >
+        <Header
+          title="System Color"
+          description="Choose the accent palette for buttons, your messages, and the background tint"
+        />
+        <div className="grid grid-cols-2 gap-2 pt-1 sm:grid-cols-3">
+          {colorOptions.map((option) => {
+            const isSelected = systemColor === option.value;
+
+            return (
+              <Button
+                key={option.value}
+                type="button"
+                variant={isSelected ? "default" : "outline"}
+                aria-pressed={isSelected}
+                onClick={() => setSystemColor(option.value)}
+                className="h-auto min-h-16 justify-start gap-3 px-3 py-3"
+              >
+                <span
+                  className="size-5 shrink-0 rounded-full border border-black/10 shadow-sm"
+                  style={{ background: option.swatch }}
+                />
+                <span className="min-w-0 text-left">
+                  <span className="block truncate text-xs font-semibold">
+                    {option.label}
+                  </span>
+                  <span
+                    className={`block text-[10px] leading-4 ${
+                      isSelected
+                        ? "text-primary-foreground/80"
+                        : "text-muted-foreground"
+                    }`}
+                  >
+                    {option.description}
+                  </span>
+                </span>
+              </Button>
+            );
+          })}
         </div>
       </div>
 

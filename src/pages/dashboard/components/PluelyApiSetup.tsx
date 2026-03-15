@@ -54,8 +54,6 @@ export const PluelyApiSetup = () => {
   const {
     pluelyApiEnabled,
     setPluelyApiEnabled,
-    hasActiveLicense,
-    setHasActiveLicense,
     getActiveLicenseStatus,
     setSupportsImages,
   } = useApp();
@@ -199,7 +197,6 @@ export const PluelyApiSetup = () => {
     setIsLoading(true);
     setError(null);
     setSuccess(null);
-    setHasActiveLicense(false);
     try {
       // Remove all license data from secure storage in one call
       await invoke("secure_storage_remove", {
@@ -284,7 +281,7 @@ export const PluelyApiSetup = () => {
 
   const title = isModelsLoading
     ? "Loading Models..."
-    : `Pluely supports ${models?.length} model${
+    : `CidIO supports ${models?.length} model${
         models?.length !== 1 ? "s" : ""
       }`;
 
@@ -292,7 +289,7 @@ export const PluelyApiSetup = () => {
     ? "Fetching the list of supported models..."
     : providerList
     ? `Access top models from providers like ${providerList}. and select smaller models for faster responses.`
-    : "Explore all the models Pluely supports.";
+    : "Explore all the models CidIO supports.";
 
   return (
     <div id="pluely-api" className="space-y-3 -mt-2">
@@ -327,7 +324,7 @@ export const PluelyApiSetup = () => {
               variant="outline"
               className="h-11 text-start shadow-none w-full"
             >
-              {selectedModel ? selectedModel.name : "Select pro models"}{" "}
+              {selectedModel ? selectedModel.name : "Select models"}{" "}
               <ChevronDown />
             </Button>
           </PopoverTrigger>
@@ -402,8 +399,8 @@ export const PluelyApiSetup = () => {
               <div className="space-y-1">
                 <label className="text-sm font-medium">License Key</label>
                 <p className="text-sm font-medium text-muted-foreground">
-                  After completing your purchase, you'll receive a license key
-                  via email. Paste it below to activate.
+                  Optional: enter a license key if you want to use the hosted
+                  CidIO API. All local app features stay unlocked without it.
                 </p>
               </div>
               <div className="flex gap-2">
@@ -467,8 +464,8 @@ export const PluelyApiSetup = () => {
               {storedLicenseKey ? (
                 <div className="-mt-1">
                   <p className="text-sm font-medium text-muted-foreground select-auto">
-                    If you need any help or any assistance, contact
-                    support@pluely.com
+                    If you need help or assistance, use Contact Support in the
+                    sidebar.
                   </p>
                 </div>
               ) : null}
@@ -478,19 +475,19 @@ export const PluelyApiSetup = () => {
       </div>
       <div className="flex justify-between items-center">
         <Header
-          title={`${pluelyApiEnabled ? "Disable" : "Enable"} Pluely API`}
+          title={`${pluelyApiEnabled ? "Disable" : "Enable"} CidIO API`}
           description={
             storedLicenseKey
               ? pluelyApiEnabled
-                ? "Using all pluely APIs for audio, and chat."
+                ? "Using all CidIO APIs for audio and chat."
                 : "Using all your own AI Providers for audio, and chat."
-              : "A valid license is required to enable Pluely API or you can use your own AI Providers and STT Providers."
+              : "The hosted CidIO API expects remote credentials. You can also use your own AI Providers and STT Providers."
           }
         />
         <Switch
           checked={pluelyApiEnabled}
           onCheckedChange={setPluelyApiEnabled}
-          disabled={!storedLicenseKey || !hasActiveLicense} // Disable if no license is stored
+          disabled={isLoading}
         />
       </div>
     </div>

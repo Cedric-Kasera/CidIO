@@ -1,5 +1,6 @@
 use crate::api::get_stored_credentials;
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::env;
 use std::fs;
 use std::path::PathBuf;
@@ -48,6 +49,7 @@ struct SecureStorage {
     license_key: Option<String>,
     instance_id: Option<String>,
     selected_pluely_model: Option<String>,
+    provider_api_keys: Option<HashMap<String, String>>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -61,19 +63,38 @@ pub struct StorageResult {
     license_key: Option<String>,
     instance_id: Option<String>,
     selected_pluely_model: Option<String>,
+    provider_api_keys: Option<HashMap<String, String>>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ProviderSecretItem {
+    key: String,
+    value: String,
+}
+
+fn read_secure_storage(storage_path: &PathBuf) -> Result<SecureStorage, String> {
+    if !storage_path.exists() {
+        return Ok(SecureStorage::default());
+    }
+
+    let content = fs::read_to_string(storage_path)
+        .map_err(|e| format!("Failed to read storage file: {}", e))?;
+
+    serde_json::from_str(&content).map_err(|e| format!("Failed to parse storage file: {}", e))
+}
+
+fn write_secure_storage(storage_path: &PathBuf, storage: &SecureStorage) -> Result<(), String> {
+    let content = serde_json::to_string(storage)
+        .map_err(|e| format!("Failed to serialize storage: {}", e))?;
+
+    fs::write(storage_path, content).map_err(|e| format!("Failed to write storage file: {}", e))
 }
 
 #[tauri::command]
 pub async fn secure_storage_save(app: AppHandle, items: Vec<StorageItem>) -> Result<(), String> {
     let storage_path = get_secure_storage_path(&app)?;
 
-    let mut storage = if storage_path.exists() {
-        let content = fs::read_to_string(&storage_path)
-            .map_err(|e| format!("Failed to read storage file: {}", e))?;
-        serde_json::from_str(&content).unwrap_or_default()
-    } else {
-        SecureStorage::default()
-    };
+    let mut storage = read_secure_storage(&storage_path)?;
 
     for item in items {
         match item.key.as_str() {
@@ -84,13 +105,7 @@ pub async fn secure_storage_save(app: AppHandle, items: Vec<StorageItem>) -> Res
         }
     }
 
-    let content = serde_json::to_string(&storage)
-        .map_err(|e| format!("Failed to serialize storage: {}", e))?;
-
-    fs::write(&storage_path, content)
-        .map_err(|e| format!("Failed to write storage file: {}", e))?;
-
-    Ok(())
+    write_secure_storage(&storage_path, &storage)
 }
 
 #[tauri::command]
@@ -102,19 +117,17 @@ pub async fn secure_storage_get(app: AppHandle) -> Result<StorageResult, String>
             license_key: None,
             instance_id: None,
             selected_pluely_model: None,
+            provider_api_keys: None,
         });
     }
 
-    let content = fs::read_to_string(&storage_path)
-        .map_err(|e| format!("Failed to read storage file: {}", e))?;
-
-    let storage: SecureStorage = serde_json::from_str(&content)
-        .map_err(|e| format!("Failed to parse storage file: {}", e))?;
+    let storage = read_secure_storage(&storage_path)?;
 
     Ok(StorageResult {
         license_key: storage.license_key,
         instance_id: storage.instance_id,
         selected_pluely_model: storage.selected_pluely_model,
+        provider_api_keys: storage.provider_api_keys,
     })
 }
 
@@ -126,11 +139,7 @@ pub async fn secure_storage_remove(app: AppHandle, keys: Vec<String>) -> Result<
         return Ok(()); // Nothing to remove
     }
 
-    let content = fs::read_to_string(&storage_path)
-        .map_err(|e| format!("Failed to read storage file: {}", e))?;
-
-    let mut storage: SecureStorage = serde_json::from_str(&content)
-        .map_err(|e| format!("Failed to parse storage file: {}", e))?;
+    let mut storage = read_secure_storage(&storage_path)?;
 
     for key in keys {
         match key.as_str() {
@@ -141,13 +150,50 @@ pub async fn secure_storage_remove(app: AppHandle, keys: Vec<String>) -> Result<
         }
     }
 
-    let content = serde_json::to_string(&storage)
-        .map_err(|e| format!("Failed to serialize storage: {}", e))?;
+    write_secure_storage(&storage_path, &storage)
+}
 
-    fs::write(&storage_path, content)
-        .map_err(|e| format!("Failed to write storage file: {}", e))?;
+#[tauri::command]
+pub async fn provider_secret_save(app: AppHandle, item: ProviderSecretItem) -> Result<(), String> {
+    let storage_path = get_secure_storage_path(&app)?;
+    let mut storage = read_secure_storage(&storage_path)?;
+    let mut provider_api_keys = storage.provider_api_keys.unwrap_or_default();
 
-    Ok(())
+    provider_api_keys.insert(item.key, item.value);
+    storage.provider_api_keys = Some(provider_api_keys);
+
+    write_secure_storage(&storage_path, &storage)
+}
+
+#[tauri::command]
+pub async fn provider_secret_get(app: AppHandle, key: String) -> Result<Option<String>, String> {
+    let storage_path = get_secure_storage_path(&app)?;
+    let storage = read_secure_storage(&storage_path)?;
+
+    Ok(storage
+        .provider_api_keys
+        .and_then(|provider_api_keys| provider_api_keys.get(&key).cloned()))
+}
+
+#[tauri::command]
+pub async fn provider_secret_remove(app: AppHandle, key: String) -> Result<(), String> {
+    let storage_path = get_secure_storage_path(&app)?;
+
+    if !storage_path.exists() {
+        return Ok(());
+    }
+
+    let mut storage = read_secure_storage(&storage_path)?;
+
+    if let Some(provider_api_keys) = storage.provider_api_keys.as_mut() {
+        provider_api_keys.remove(&key);
+
+        if provider_api_keys.is_empty() {
+            storage.provider_api_keys = None;
+        }
+    }
+
+    write_secure_storage(&storage_path, &storage)
 }
 
 #[derive(Debug, Serialize, Deserialize)]

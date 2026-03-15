@@ -11,6 +11,8 @@ use tokio::time::{sleep, Duration};
 use tauri_nspanel::ManagerExt;
 
 use crate::window::show_dashboard_window;
+
+const LOCAL_UNLOCK_ENABLED: bool = true;
 // State for window visibility
 pub struct WindowVisibility {
     #[allow(dead_code)]
@@ -37,7 +39,7 @@ pub struct LicenseState {
 impl Default for LicenseState {
     fn default() -> Self {
         LicenseState {
-            has_active_license: AtomicBool::new(false),
+            has_active_license: AtomicBool::new(LOCAL_UNLOCK_ENABLED),
         }
     }
 }
@@ -126,7 +128,7 @@ pub fn handle_shortcut_action<R: Runtime>(app: &AppHandle<R>, action_id: &str) {
 pub fn start_move_window<R: Runtime>(app: &AppHandle<R>, direction: &str) {
     {
         let license_state = app.state::<LicenseState>();
-        if !license_state.is_active() {
+        if !(LOCAL_UNLOCK_ENABLED || license_state.is_active()) {
             eprintln!(
                 "Ignoring move_window start for direction '{}' - license inactive",
                 direction
@@ -332,7 +334,7 @@ pub fn update_shortcuts<R: Runtime>(
 
     let has_license = {
         let license_state = app.state::<LicenseState>();
-        license_state.is_active()
+        LOCAL_UNLOCK_ENABLED || license_state.is_active()
     };
 
     for (action_id, binding) in &config.bindings {
@@ -504,10 +506,10 @@ pub fn validate_shortcut_key(key: String) -> Result<bool, String> {
 pub fn set_license_status<R: Runtime>(app: AppHandle<R>, has_license: bool) -> Result<(), String> {
     {
         let state = app.state::<LicenseState>();
-        state.set_active(has_license);
+        state.set_active(LOCAL_UNLOCK_ENABLED || has_license);
     }
 
-    if !has_license {
+    if !(LOCAL_UNLOCK_ENABLED || has_license) {
         stop_all_move_windows(&app);
     }
 

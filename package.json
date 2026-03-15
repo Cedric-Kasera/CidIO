@@ -1,12 +1,12 @@
 {
-  "name": "pluely",
+  "name": "cidio",
   "private": false,
   "version": "0.1.9",
   "description": "The Open Source Alternative to Cluely - A lightning-fast, privacy-first AI assistant that works seamlessly during meetings, interviews, and conversations without anyone knowing.",
   "author": {
-    "name": "Srikanth Nani",
-    "email": "srikanthnani1202@gmail.com",
-    "url": "https://www.srikanthnani.com"
+    "name": "Cedric-Kasera",
+    "email": "cedric.kasera@gmail.com",
+    "url": "https://omarkasera.vercel.app"
   },
   "license": "GPL-3.0",
   "homepage": "https://github.com/iamsrikanthnani/pluely#readme",

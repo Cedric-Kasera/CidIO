@@ -1,4 +1,4 @@
-import { MessageSquareText, ChevronUp, ChevronDown } from "lucide-react";
+import { MessageSquareText, ChevronDown } from "lucide-react";
 import {
   Popover,
   PopoverContent,
@@ -16,6 +16,12 @@ interface MessageHistoryProps {
   messageHistoryOpen: boolean;
   setMessageHistoryOpen: (open: boolean) => void;
 }
+
+const formatTimestamp = (timestamp: number) =>
+  new Date(timestamp).toLocaleTimeString([], {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
 
 export const MessageHistory = ({
   conversationHistory,
@@ -71,11 +77,7 @@ export const MessageHistory = ({
                 onClick={() => setMessageHistoryOpen(false)}
                 className="text-xs"
               >
-                {messageHistoryOpen ? (
-                  <ChevronUp className="h-4 w-4" />
-                ) : (
-                  <ChevronDown className="h-4 w-4" />
-                )}
+                <ChevronDown className="h-4 w-4" />
               </Button>
             </div>
           </div>
@@ -83,31 +85,42 @@ export const MessageHistory = ({
 
         <ScrollArea className="h-[calc(100vh-10rem)]">
           <div className="p-4 space-y-4">
-            {conversationHistory
-              .sort((a, b) => b?.timestamp - a?.timestamp)
-              .map((message) => (
+            {conversationHistory.map((message) => {
+              const isUserMessage = message.role === "user";
+
+              return (
                 <div
                   key={message.id}
-                  className={`p-3 rounded-lg ${
-                    message.role === "user"
-                      ? "bg-primary/10 border-l-4 border-primary"
-                      : "bg-muted/50"
+                  className={`flex w-full ${
+                    isUserMessage ? "justify-end" : "justify-start"
                   }`}
                 >
-                  <div className="flex items-center gap-2 mb-2">
-                    <span className="text-xs font-medium text-muted-foreground uppercase">
-                      {message.role === "user" ? "You" : "AI"}
-                    </span>
-                    <span className="text-xs text-muted-foreground">
-                      {new Date(message.timestamp).toLocaleTimeString([], {
-                        hour: "2-digit",
-                        minute: "2-digit",
-                      })}
-                    </span>
+                  <div
+                    className={`max-w-[85%] rounded-[1.35rem] px-4 py-3 text-sm shadow-sm ${
+                      isUserMessage
+                        ? "rounded-br-md bg-primary text-primary-foreground"
+                        : "rounded-bl-md border border-border/60 bg-muted/60 text-foreground"
+                    }`}
+                  >
+                    <div
+                      className={`mb-2 flex items-center gap-2 text-[10px] ${
+                        isUserMessage
+                          ? "justify-end text-primary-foreground/70"
+                          : "text-muted-foreground"
+                      }`}
+                    >
+                      <span className="font-medium uppercase">
+                        {isUserMessage ? "You" : "AI"}
+                      </span>
+                      <span>{formatTimestamp(message.timestamp)}</span>
+                    </div>
+                    <div className="break-words leading-6">
+                      <Markdown>{message.content}</Markdown>
+                    </div>
                   </div>
-                  <Markdown>{message.content}</Markdown>
                 </div>
-              ))}
+              );
+            })}
           </div>
         </ScrollArea>
       </PopoverContent>

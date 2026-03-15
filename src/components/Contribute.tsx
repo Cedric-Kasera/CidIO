@@ -6,12 +6,12 @@ const Contribute = () => {
       <CardContent className="flex flex-col gap-4 p-4 py-0 md:flex-row md:items-center md:justify-between">
         <div className="space-y-2 md:max-w-[70%]">
           <CardTitle className="text-xs lg:text-sm">
-            Contribute to Pluely, Earn Lifetime Access
+            Contribute to CidIO, Earn Lifetime Access
           </CardTitle>
           <CardDescription className="text-[10px] lg:text-xs">
             Fix a listed critical issue and earn a lifetime Dev Pro license
-            valued at $120. Only issues on our contribute page qualify. read
-            more at pluely.com/contribute
+            valued at $120. Only issues on our contribute page qualify. Read
+            more on the contribution page.
           </CardDescription>
         </div>
         <Button asChild className="w-full md:w-auto text-[10px] lg:text-xs">
@@ -20,7 +20,7 @@ const Contribute = () => {
             rel="noopener noreferrer"
             target="_blank"
           >
-            pluely.com/contribute
+            Open contribution page
           </a>
         </Button>
       </CardContent>

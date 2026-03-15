@@ -1,6 +1,7 @@
 // Storage keys
 export const STORAGE_KEYS = {
   THEME: "theme",
+  SYSTEM_COLOR: "system_color",
   TRANSPARENCY: "transparency",
   SYSTEM_PROMPT: "system_prompt",
   SELECTED_SYSTEM_PROMPT_ID: "selected_system_prompt_id",
@@ -10,6 +11,8 @@ export const STORAGE_KEYS = {
   CUSTOM_SPEECH_PROVIDERS: "curl_custom_speech_providers",
   SELECTED_AI_PROVIDER: "curl_selected_ai_provider",
   SELECTED_STT_PROVIDER: "curl_selected_stt_provider",
+  AI_PROVIDER_VARIABLES: "curl_ai_provider_variables",
+  STT_PROVIDER_VARIABLES: "curl_stt_provider_variables",
   SYSTEM_AUDIO_CONTEXT: "system_audio_context",
   SYSTEM_AUDIO_QUICK_ACTIONS: "system_audio_quick_actions",
   CUSTOMIZABLE: "customizable",

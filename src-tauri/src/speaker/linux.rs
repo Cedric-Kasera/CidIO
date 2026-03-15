@@ -2,6 +2,8 @@
 use super::AudioDevice;
 use anyhow::{anyhow, Result};
 use futures_util::Stream;
+use libpulse_binding as pulse;
+use libpulse_simple_binding as psimple;
 use std::cell::RefCell;
 use std::collections::VecDeque;
 use std::rc::Rc;
@@ -10,8 +12,6 @@ use std::task::{Poll, Waker};
 use std::thread;
 use tracing::error;
 use tracing::warn;
-use libpulse_binding as pulse;
-use libpulse_simple_binding as psimple;
 
 use psimple::Simple;
 use pulse::context::introspect::Introspector;
@@ -28,7 +28,7 @@ pub fn get_input_devices() -> Result<Vec<AudioDevice>> {
 
     let mut mainloop =
         Mainloop::new().ok_or_else(|| anyhow!("Failed to create PulseAudio mainloop"))?;
-    let mut context = Context::new(&mainloop, "pluely-device-enum")
+    let mut context = Context::new(&mainloop, "cidio-device-enum")
         .ok_or_else(|| anyhow!("Failed to create PulseAudio context"))?;
 
     context
@@ -127,7 +127,7 @@ pub fn get_output_devices() -> Result<Vec<AudioDevice>> {
 
     let mut mainloop =
         Mainloop::new().ok_or_else(|| anyhow!("Failed to create PulseAudio mainloop"))?;
-    let mut context = Context::new(&mainloop, "pluely-device-enum")
+    let mut context = Context::new(&mainloop, "cidio-device-enum")
         .ok_or_else(|| anyhow!("Failed to create PulseAudio context"))?;
 
     context
@@ -338,7 +338,7 @@ impl SpeakerStream {
         let init_result: Result<(Simple, u32)> = (|| {
             let simple = Simple::new(
                 None,                    // Use default server
-                "pluely",                // Application name
+                "cidio",                 // Application name
                 Direction::Record,       // Record direction
                 final_source.as_deref(), // Source name (monitor)
                 "System Audio Capture",  // Stream description

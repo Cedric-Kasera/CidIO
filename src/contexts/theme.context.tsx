@@ -2,6 +2,18 @@ import { createContext, useContext, useEffect, useState } from "react";
 import { STORAGE_KEYS } from "@/config/";
 
 type Theme = "dark" | "light" | "system";
+export const SYSTEM_COLORS = [
+  "default",
+  "red",
+  "yellow",
+  "lime",
+  "orange",
+  "indigo",
+] as const;
+export type SystemColor = (typeof SYSTEM_COLORS)[number];
+
+const isSystemColor = (value: string | null): value is SystemColor =>
+  SYSTEM_COLORS.includes(value as SystemColor);
 
 type ThemeProviderProps = {
   children: React.ReactNode;
@@ -12,6 +24,8 @@ type ThemeProviderProps = {
 type ThemeProviderState = {
   theme: Theme;
   setTheme: (theme: Theme) => void;
+  systemColor: SystemColor;
+  setSystemColor: (systemColor: SystemColor) => void;
   transparency: number;
   onSetTransparency: (transparency: number) => void;
 };
@@ -19,6 +33,8 @@ type ThemeProviderState = {
 const initialState: ThemeProviderState = {
   theme: "system",
   setTheme: () => null,
+  systemColor: "default",
+  setSystemColor: () => null,
   transparency: 10,
   onSetTransparency: () => null,
 };
@@ -34,6 +50,10 @@ export function ThemeProvider({
   const [theme, setTheme] = useState<Theme>(
     () => (localStorage.getItem(storageKey) as Theme) || defaultTheme
   );
+  const [systemColor, setSystemColorState] = useState<SystemColor>(() => {
+    const stored = localStorage.getItem(STORAGE_KEYS.SYSTEM_COLOR);
+    return isSystemColor(stored) ? stored : "default";
+  });
   const [transparency, setTransparency] = useState<number>(() => {
     const stored = localStorage.getItem(STORAGE_KEYS.TRANSPARENCY);
     return stored ? parseInt(stored, 10) : 10;
@@ -49,6 +69,9 @@ export function ThemeProvider({
       }
       if (e.key === storageKey && e.newValue) {
         setTheme(e.newValue as Theme);
+      }
+      if (e.key === STORAGE_KEYS.SYSTEM_COLOR) {
+        setSystemColorState(isSystemColor(e.newValue) ? e.newValue : "default");
       }
     };
 
@@ -89,6 +112,17 @@ export function ThemeProvider({
     };
   }, [theme]);
 
+  useEffect(() => {
+    const root = window.document.documentElement;
+
+    if (systemColor === "default") {
+      root.removeAttribute("data-system-color");
+      return;
+    }
+
+    root.setAttribute("data-system-color", systemColor);
+  }, [systemColor]);
+
   // Apply transparency globally
   useEffect(() => {
     const root = window.document.documentElement;
@@ -115,6 +149,11 @@ export function ThemeProvider({
     setTheme: (newTheme: Theme) => {
       localStorage.setItem(storageKey, newTheme);
       setTheme(newTheme);
+    },
+    systemColor,
+    setSystemColor: (newSystemColor: SystemColor) => {
+      localStorage.setItem(STORAGE_KEYS.SYSTEM_COLOR, newSystemColor);
+      setSystemColorState(newSystemColor);
     },
     isSystemThemeDark,
     transparency,

@@ -1,4 +1,4 @@
-import { Loader2, XIcon } from "lucide-react";
+import { ChevronDown, Loader2 } from "lucide-react";
 import {
   Popover,
   PopoverContent,
@@ -7,16 +7,19 @@ import {
   ScrollArea,
   Input as InputComponent,
   Markdown,
-  Switch,
-  CopyButton,
 } from "@/components";
 import { UseCompletionReturn } from "@/types";
 import { MessageHistory } from "./MessageHistory";
 
+const formatTimestamp = (timestamp: number) =>
+  new Date(timestamp).toLocaleTimeString([], {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+
 export const Input = ({
   isPopoverOpen,
   isLoading,
-  reset,
   input,
   setInput,
   handleKeyPress,
@@ -24,6 +27,7 @@ export const Input = ({
   currentConversationId,
   conversationHistory,
   startNewConversation,
+  setChatPanelOpen,
   messageHistoryOpen,
   setMessageHistoryOpen,
   error,
@@ -32,20 +36,45 @@ export const Input = ({
   scrollAreaRef,
   inputRef,
   isHidden,
-  keepEngaged,
-  setKeepEngaged,
 }: UseCompletionReturn & { isHidden: boolean }) => {
+  const now = Date.now();
+  const pendingUserMessage =
+    input.trim() && (isLoading || response || error)
+      ? {
+          id: "pending-user",
+          role: "user" as const,
+          content: input,
+          timestamp: now,
+        }
+      : null;
+  const pendingAssistantMessage = response
+    ? {
+        id: "pending-assistant",
+        role: "assistant" as const,
+        content: response,
+        timestamp: now + 1,
+      }
+    : null;
+  const displayMessages = [
+    ...conversationHistory,
+    ...(pendingUserMessage ? [pendingUserMessage] : []),
+    ...(pendingAssistantMessage ? [pendingAssistantMessage] : []),
+  ];
+
   return (
     <div className="relative flex-1">
       <Popover
         open={isPopoverOpen}
         onOpenChange={(open) => {
-          if (!open && !isLoading && !keepEngaged) {
-            reset();
+          if (open) {
+            setChatPanelOpen(true);
           }
         }}
       >
-        <PopoverTrigger asChild className="!border-none !bg-transparent">
+        <PopoverTrigger
+          asChild
+          className="!border-none !bg-transparent data-[state=open]:!bg-transparent data-[state=open]:!text-inherit data-[state=open]:!border-transparent"
+        >
           <div className="relative select-none">
             <InputComponent
               ref={inputRef}
@@ -62,7 +91,6 @@ export const Input = ({
               }`}
             />
 
-            {/* Conversation thread indicator */}
             {currentConversationId &&
               conversationHistory.length > 0 &&
               !isLoading && (
@@ -77,7 +105,6 @@ export const Input = ({
                 </div>
               )}
 
-            {/* Loading indicator */}
             {isLoading && (
               <div className="absolute right-3 top-1/2 -translate-y-1/2 animate-pulse">
                 <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
@@ -86,124 +113,111 @@ export const Input = ({
           </div>
         </PopoverTrigger>
 
-        {/* Response Panel */}
         <PopoverContent
           align="end"
           side="bottom"
-          className="w-screen p-0 border shadow-lg overflow-hidden"
+          className="w-screen overflow-hidden border p-0 shadow-lg"
           sideOffset={8}
         >
-          <div className="flex items-center justify-between px-4 py-2 border-b bg-muted/30">
-            <div className="flex flex-row gap-1 items-center">
-              <h3 className="font-semibold text-xs select-none">
-                {keepEngaged ? "Conversation Mode" : "AI Response"}
+          <div className="flex items-center justify-between border-b bg-muted/30 px-4 py-2.5">
+            <div className="flex flex-col gap-0.5">
+              <h3 className="select-none text-xs font-semibold">
+                Current Conversation
               </h3>
               <div className="text-[10px] text-muted-foreground/70">
-                (Use arrow keys to scroll)
+                {displayMessages.length} messages
               </div>
             </div>
+
             <div className="flex items-center gap-2 select-none">
-              <div className="flex flex-row items-center gap-2 mr-2">
-                <p className="text-[10px]">{`Toggle ${
-                  keepEngaged ? "AI response" : "conversation mode"
-                }`}</p>
-                <span className="text-[10px] text-muted-foreground/60 bg-muted/30 px-1 py-0 rounded border border-input/50">
-                  {navigator.platform.toLowerCase().includes("mac")
-                    ? "⌘"
-                    : "Ctrl"}{" "}
-                  + K
-                </span>
-                <Switch
-                  checked={keepEngaged}
-                  onCheckedChange={(checked) => {
-                    setKeepEngaged(checked);
-                    // Focus input after toggle
-                    setTimeout(() => {
-                      inputRef?.current?.focus();
-                    }, 100);
-                  }}
-                />
-              </div>
-              <CopyButton content={response} />
               <Button
-                size="icon"
+                size="sm"
                 variant="ghost"
+                className="cursor-pointer text-xs"
                 onClick={() => {
                   if (isLoading) {
                     cancel();
-                  } else if (keepEngaged) {
-                    // When keepEngaged is on, close everything and start new conversation
-                    setKeepEngaged(false);
-                    startNewConversation();
-                  } else {
-                    reset();
                   }
+                  startNewConversation();
                 }}
-                className="cursor-pointer"
-                title={
-                  isLoading
-                    ? "Cancel loading"
-                    : keepEngaged
-                    ? "Close and start new conversation"
-                    : "Clear conversation"
-                }
               >
-                <XIcon />
+                New Chat
+              </Button>
+              <Button
+                size="icon"
+                variant="ghost"
+                className="cursor-pointer"
+                title="Collapse conversation"
+                onClick={() => setChatPanelOpen(false)}
+              >
+                <ChevronDown className="h-4 w-4" />
               </Button>
             </div>
           </div>
 
           <ScrollArea ref={scrollAreaRef} className="h-[calc(100vh-7rem)]">
-            <div className="p-4">
+            <div className="space-y-4 p-4">
               {error && (
-                <div className="mb-4 p-3 bg-destructive/10 border border-destructive/20 rounded text-sm text-destructive">
+                <div className="rounded-2xl border border-destructive/20 bg-destructive/10 p-3 text-sm text-destructive">
                   <strong>Error:</strong> {error}
                 </div>
               )}
-              {isLoading && (
-                <div className="flex items-center gap-2 my-4 text-muted-foreground animate-pulse select-none">
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  <span className="text-sm">Generating response...</span>
-                </div>
-              )}
-              {response && <Markdown>{response}</Markdown>}
 
-              {/* Conversation History - Separate scroll, no auto-scroll */}
-              {keepEngaged && conversationHistory.length > 1 && (
-                <div className="space-y-3 pt-3">
-                  {conversationHistory
-                    .sort((a, b) => b?.timestamp - a?.timestamp)
-                    .map((message, index) => {
-                      if (!isLoading && index === 0) {
-                        return null;
-                      }
-                      return (
-                        <div
-                          key={message.id}
-                          className={`p-3 rounded-lg text-sm ${
-                            message.role === "user"
-                              ? "bg-primary/10 border-l-4 border-primary"
-                              : "bg-muted/50"
-                          }`}
+              {displayMessages.map((message) => {
+                const isUserMessage = message.role === "user";
+
+                return (
+                  <div
+                    key={message.id}
+                    className={`flex w-full ${
+                      isUserMessage ? "justify-end" : "justify-start"
+                    }`}
+                  >
+                    <div
+                      className={`max-w-[85%] rounded-[1.35rem] px-4 py-3 text-sm shadow-sm ${
+                        isUserMessage
+                          ? "rounded-br-md bg-primary text-primary-foreground"
+                          : "rounded-bl-md border border-border/60 bg-muted/60 text-foreground"
+                      }`}
+                    >
+                      <div
+                        className={`mb-2 flex items-center gap-2 text-[10px] ${
+                          isUserMessage
+                            ? "justify-end text-primary-foreground/70"
+                            : "text-muted-foreground"
+                        }`}
+                      >
+                        <span className="font-medium uppercase">
+                          {isUserMessage ? "You" : "AI"}
+                        </span>
+                        <span>{formatTimestamp(message.timestamp)}</span>
+                      </div>
+                      <div className="break-words leading-6">
+                        <Markdown
+                          isStreaming={
+                            message.id === "pending-assistant" && isLoading
+                          }
                         >
-                          <div className="flex items-center gap-2 mb-2">
-                            <span className="text-xs font-medium text-muted-foreground uppercase">
-                              {message.role === "user" ? "You" : "AI"}
-                            </span>
-                            <span className="text-xs text-muted-foreground">
-                              {new Date(message.timestamp).toLocaleTimeString(
-                                [],
-                                {
-                                  hour: "2-digit",
-                                  minute: "2-digit",
-                                }
-                              )}
-                            </span>
-                          </div>
-                          <Markdown>{message.content}</Markdown>
-                        </div>
-                      );
-                    })}
+                          {message.content}
+                        </Markdown>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+
+              {isLoading && !response && (
+                <div className="flex w-full justify-start">
+                  <div className="max-w-[85%] rounded-[1.35rem] rounded-bl-md border border-border/60 bg-muted/60 px-4 py-3 text-sm text-foreground shadow-sm">
+                    <div className="mb-2 flex items-center gap-2 text-[10px] text-muted-foreground">
+                      <span className="font-medium uppercase">AI</span>
+                      <span>{formatTimestamp(now)}</span>
+                    </div>
+                    <div className="flex items-center gap-2 text-muted-foreground">
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      <span>Thinking...</span>
+                    </div>
+                  </div>
                 </div>
               )}
             </div>

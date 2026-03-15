@@ -52,6 +52,38 @@ interface CompletionState {
   conversationHistory: ChatMessage[];
 }
 
+const getScreenshotErrorMessage = (error: unknown) => {
+  const fallback = "Failed to capture screenshot. Please try again.";
+
+  if (typeof error === "string" && error.trim()) {
+    return `Failed to capture screenshot: ${error}`;
+  }
+
+  if (error && typeof error === "object") {
+    if ("message" in error && typeof error.message === "string" && error.message.trim()) {
+      return `Failed to capture screenshot: ${error.message}`;
+    }
+
+    if ("cause" in error && typeof error.cause === "string" && error.cause.trim()) {
+      return `Failed to capture screenshot: ${error.cause}`;
+    }
+  }
+
+  return fallback;
+};
+
+const isScreenshotCancelled = (error: unknown) => {
+  const message =
+    typeof error === "string"
+      ? error
+      : error && typeof error === "object" && "message" in error
+        ? String(error.message ?? "")
+        : "";
+
+  const normalized = message.toLowerCase();
+  return normalized.includes("cancelled") || normalized.includes("canceled");
+};
+
 export const useCompletion = () => {
   const {
     selectedAIProvider,
@@ -73,10 +105,10 @@ export const useCompletion = () => {
   });
   const [micOpen, setMicOpen] = useState(false);
   const [enableVAD, setEnableVAD] = useState(false);
+  const [chatPanelOpen, setChatPanelOpen] = useState(false);
   const [messageHistoryOpen, setMessageHistoryOpen] = useState(false);
   const [isFilesPopoverOpen, setIsFilesPopoverOpen] = useState(false);
   const [isScreenshotLoading, setIsScreenshotLoading] = useState(false);
-  const [keepEngaged, setKeepEngaged] = useState(false);
   const inputRef = useRef<HTMLInputElement | null>(null);
   const isProcessingScreenshotRef = useRef(false);
   const screenshotConfigRef = useRef(screenshotConfiguration);
@@ -140,6 +172,8 @@ export const useCompletion = () => {
       if (!input.trim()) {
         return;
       }
+
+      setChatPanelOpen(true);
 
       if (speechText) {
         setState((prev) => ({
@@ -271,6 +305,7 @@ export const useCompletion = () => {
             ...prev,
             input: "",
             attachedFiles: [],
+            response: "",
           }));
         }
       } catch (error) {
@@ -304,10 +339,6 @@ export const useCompletion = () => {
   }, []);
 
   const reset = useCallback(() => {
-    // Don't reset if keep engaged mode is active
-    if (keepEngaged) {
-      return;
-    }
     cancel();
     setState((prev) => ({
       ...prev,
@@ -316,7 +347,7 @@ export const useCompletion = () => {
       error: null,
       attachedFiles: [],
     }));
-  }, [cancel, keepEngaged]);
+  }, [cancel]);
 
   // Helper function to convert file to base64
   const fileToBase64 = useCallback(async (file: File): Promise<string> => {
@@ -344,6 +375,7 @@ export const useCompletion = () => {
       error: null,
       isLoading: false,
     }));
+    setChatPanelOpen(true);
   }, []);
 
   const startNewConversation = useCallback(() => {
@@ -357,6 +389,7 @@ export const useCompletion = () => {
       isLoading: false,
       attachedFiles: [],
     }));
+    setChatPanelOpen(false);
   }, []);
 
   const saveCurrentConversation = useCallback(
@@ -574,6 +607,8 @@ export const useCompletion = () => {
           const signal = abortControllerRef.current.signal;
 
           try {
+            setChatPanelOpen(true);
+
             // Prepare message history for the AI
             const messageHistory = state.conversationHistory.map((msg) => ({
               role: msg.role,
@@ -655,6 +690,7 @@ export const useCompletion = () => {
               setState((prev) => ({
                 ...prev,
                 input: "",
+                response: "",
               }));
             }
           } catch (e: any) {
@@ -759,10 +795,11 @@ export const useCompletion = () => {
   );
 
   const isPopoverOpen =
-    state.isLoading ||
-    state.response !== "" ||
-    state.error !== null ||
-    keepEngaged;
+    chatPanelOpen &&
+    (state.isLoading ||
+      state.response !== "" ||
+      state.error !== null ||
+      state.conversationHistory.length > 0);
 
   useEffect(() => {
     resizeWindow(
@@ -776,26 +813,23 @@ export const useCompletion = () => {
     isFilesPopoverOpen,
   ]);
 
-  // Auto scroll to bottom when response updates
+  // Auto scroll to the latest visible message.
   useEffect(() => {
     const responseSettings = getResponseSettings();
-    if (
-      !keepEngaged &&
-      state.response &&
-      scrollAreaRef.current &&
-      responseSettings.autoScroll
-    ) {
-      const scrollElement = scrollAreaRef.current.querySelector(
-        "[data-radix-scroll-area-viewport]"
-      );
-      if (scrollElement) {
-        scrollElement.scrollTo({
-          top: scrollElement.scrollHeight,
-          behavior: "smooth",
-        });
-      }
+    if (!isPopoverOpen || !scrollAreaRef.current || !responseSettings.autoScroll) {
+      return;
     }
-  }, [state.response, keepEngaged]);
+
+    const scrollElement = scrollAreaRef.current.querySelector(
+      "[data-radix-scroll-area-viewport]"
+    );
+    if (scrollElement) {
+      scrollElement.scrollTo({
+        top: scrollElement.scrollHeight,
+        behavior: "smooth",
+      });
+    }
+  }, [state.response, state.conversationHistory, isPopoverOpen]);
 
   // Keyboard arrow key support for scrolling
   useEffect(() => {
@@ -823,27 +857,6 @@ export const useCompletion = () => {
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [isPopoverOpen, scrollAreaRef]);
-
-  // Keyboard shortcut for toggling keep engaged mode (Cmd+K / Ctrl+K)
-  useEffect(() => {
-    const handleToggleShortcut = (e: KeyboardEvent) => {
-      // Only trigger when popover is open
-      if (!isPopoverOpen) return;
-
-      // Check for Cmd+K (Mac) or Ctrl+K (Windows/Linux)
-      if ((e.metaKey || e.ctrlKey) && e.key === "k") {
-        e.preventDefault();
-        setKeepEngaged((prev) => !prev);
-        // Focus the input after toggle (with delay to ensure DOM is ready)
-        setTimeout(() => {
-          inputRef.current?.focus();
-        }, 100);
-      }
-    };
-
-    window.addEventListener("keydown", handleToggleShortcut);
-    return () => window.removeEventListener("keydown", handleToggleShortcut);
-  }, [isPopoverOpen]);
 
   const captureScreenshot = useCallback(async () => {
     if (!handleScreenshotSubmit) return;
@@ -876,7 +889,7 @@ export const useCompletion = () => {
             setState((prev) => ({
               ...prev,
               error:
-                "Screen Recording permission required. Please enable it by going to System Settings > Privacy & Security > Screen & System Audio Recording. If you don't see Pluely in the list, click the '+' button to add it. If it's already listed, make sure it's enabled. Then restart the app.",
+                "Screen Recording permission required. Please enable it by going to System Settings > Privacy & Security > Screen & System Audio Recording. If you don't see CidIO in the list, click the '+' button to add it. If it's already listed, make sure it's enabled. Then restart the app.",
             }));
             setIsScreenshotLoading(false);
             screenshotInitiatedByThisContext.current = false;
@@ -903,9 +916,20 @@ export const useCompletion = () => {
         await invoke("start_screen_capture");
       }
     } catch (error) {
+      console.error("Screenshot capture failed:", error);
+      if (isScreenshotCancelled(error)) {
+        setState((prev) => ({
+          ...prev,
+          error: null,
+        }));
+        setIsScreenshotLoading(false);
+        isProcessingScreenshotRef.current = false;
+        screenshotInitiatedByThisContext.current = false;
+        return;
+      }
       setState((prev) => ({
         ...prev,
-        error: "Failed to capture screenshot. Please try again.",
+        error: getScreenshotErrorMessage(error),
       }));
       isProcessingScreenshotRef.current = false;
       screenshotInitiatedByThisContext.current = false;
@@ -1027,6 +1051,8 @@ export const useCompletion = () => {
     conversationHistory: state.conversationHistory,
     loadConversation,
     startNewConversation,
+    chatPanelOpen,
+    setChatPanelOpen,
     messageHistoryOpen,
     setMessageHistoryOpen,
     screenshotConfiguration,
@@ -1044,7 +1070,5 @@ export const useCompletion = () => {
     inputRef,
     captureScreenshot,
     isScreenshotLoading,
-    keepEngaged,
-    setKeepEngaged,
   };
 };

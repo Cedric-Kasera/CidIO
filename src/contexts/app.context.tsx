@@ -17,6 +17,14 @@ import {
   CursorType,
   updateCursorType,
 } from "@/lib/storage";
+import {
+  getSavedProviderApiKey,
+  getSavedProviderVariables,
+  mergeProviderVariables,
+  saveProviderVariables,
+  stripSecretProviderVariables,
+  ProviderScope,
+} from "@/lib/provider-settings";
 import { IContextType, ScreenshotConfig, TYPE_PROVIDER } from "@/types";
 import curl2Json from "@bany/curl-to-json";
 import { invoke } from "@tauri-apps/api/core";
@@ -25,6 +33,7 @@ import { getCurrentWindow } from "@tauri-apps/api/window";
 import { enable, disable } from "@tauri-apps/plugin-autostart";
 import {
   ReactNode,
+  SetStateAction,
   createContext,
   useContext,
   useEffect,
@@ -65,8 +74,49 @@ const validateAndProcessCurlProviders = (
   }
 };
 
+// Temporary local unlock: keep the app features available without removing
+// the existing licensing code paths entirely.
+const LOCAL_UNLOCK_ENABLED = true;
+
 // Create the context
 const AppContext = createContext<IContextType | undefined>(undefined);
+
+const hydrateSelectedProviderApiKey = async (
+  scope: ProviderScope,
+  provider: string,
+  expectedApiKey: string,
+  setSelection: React.Dispatch<
+    React.SetStateAction<{
+      provider: string;
+      variables: Record<string, string>;
+    }>
+  >
+) => {
+  const savedApiKey = await getSavedProviderApiKey(scope, provider);
+
+  if (!savedApiKey) {
+    return;
+  }
+
+  setSelection((prev) => {
+    if (prev.provider !== provider) {
+      return prev;
+    }
+
+    const currentApiKey = prev.variables.api_key || "";
+    if (currentApiKey !== expectedApiKey || currentApiKey === savedApiKey) {
+      return prev;
+    }
+
+    return {
+      ...prev,
+      variables: {
+        ...prev.variables,
+        api_key: savedApiKey,
+      },
+    };
+  });
+};
 
 // Create the provider component
 export const AppProvider = ({ children }: { children: ReactNode }) => {
@@ -131,7 +181,9 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   const [customizable, setCustomizable] = useState<CustomizableState>(
     DEFAULT_CUSTOMIZABLE_STATE
   );
-  const [hasActiveLicense, setHasActiveLicense] = useState<boolean>(false);
+  const [hasActiveLicense, setHasActiveLicenseState] = useState<boolean>(
+    LOCAL_UNLOCK_ENABLED
+  );
   const [supportsImages, setSupportsImagesState] = useState<boolean>(() => {
     const stored = safeLocalStorage.getItem(STORAGE_KEYS.SUPPORTS_IMAGES);
     return stored === null ? true : stored === "true";
@@ -149,17 +201,27 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   );
 
   const getActiveLicenseStatus = async () => {
-    const response: { is_active: boolean; is_dev_license: boolean } =
-      await invoke("validate_license_api");
-    setHasActiveLicense(response.is_active);
+    let response: { is_active: boolean; is_dev_license: boolean } = {
+      is_active: false,
+      is_dev_license: false,
+    };
 
-    if (response?.is_dev_license) {
+    try {
+      response = await invoke("validate_license_api");
+    } catch (error) {
+      console.debug("Failed to validate hosted API license:", error);
+    }
+
+    const isUnlocked = LOCAL_UNLOCK_ENABLED || response.is_active;
+    setHasActiveLicense(isUnlocked);
+
+    if (response?.is_dev_license && !LOCAL_UNLOCK_ENABLED) {
       setPluelyApiEnabled(false);
     }
 
     // Check if the auto configs are enabled
     const autoConfigsEnabled = localStorage.getItem("auto-configs-enabled");
-    if (response.is_active && !autoConfigsEnabled) {
+    if (isUnlocked && !autoConfigsEnabled) {
       setScreenshotConfiguration({
         mode: "auto",
         autoPrompt: "Analyze the screenshot and provide insights",
@@ -186,6 +248,13 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
 
     syncLicenseState();
   }, [hasActiveLicense]);
+
+  const setHasActiveLicense = (value: SetStateAction<boolean>): void => {
+    setHasActiveLicenseState((prev) => {
+      const nextValue = typeof value === "function" ? value(prev) : value;
+      return LOCAL_UNLOCK_ENABLED || nextValue;
+    });
+  };
 
   // Function to load AI, STT, system prompt and screenshot config data from storage
   const loadData = () => {
@@ -241,7 +310,29 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       STORAGE_KEYS.SELECTED_AI_PROVIDER
     );
     if (savedSelectedAi) {
-      setSelectedAIProvider(JSON.parse(savedSelectedAi));
+      const parsed = JSON.parse(savedSelectedAi) as {
+        provider?: string;
+        variables?: Record<string, string>;
+      };
+      const provider = parsed.provider || "";
+      const variables = mergeProviderVariables(
+        parsed.variables || {},
+        getSavedProviderVariables("ai", provider)
+      );
+
+      setSelectedAIProvider({
+        provider,
+        variables,
+      });
+
+      if (provider) {
+        void hydrateSelectedProviderApiKey(
+          "ai",
+          provider,
+          variables.api_key || "",
+          setSelectedAIProvider
+        );
+      }
     }
 
     // Load selected STT provider
@@ -249,7 +340,29 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       STORAGE_KEYS.SELECTED_STT_PROVIDER
     );
     if (savedSelectedStt) {
-      setSelectedSttProvider(JSON.parse(savedSelectedStt));
+      const parsed = JSON.parse(savedSelectedStt) as {
+        provider?: string;
+        variables?: Record<string, string>;
+      };
+      const provider = parsed.provider || "";
+      const variables = mergeProviderVariables(
+        parsed.variables || {},
+        getSavedProviderVariables("stt", provider)
+      );
+
+      setSelectedSttProvider({
+        provider,
+        variables,
+      });
+
+      if (provider) {
+        void hydrateSelectedProviderApiKey(
+          "stt",
+          provider,
+          variables.api_key || "",
+          setSelectedSttProvider
+        );
+      }
     }
 
     // Load customizable state
@@ -436,8 +549,10 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       if (
         e.key === STORAGE_KEYS.CUSTOM_AI_PROVIDERS ||
         e.key === STORAGE_KEYS.SELECTED_AI_PROVIDER ||
+        e.key === STORAGE_KEYS.AI_PROVIDER_VARIABLES ||
         e.key === STORAGE_KEYS.CUSTOM_SPEECH_PROVIDERS ||
         e.key === STORAGE_KEYS.SELECTED_STT_PROVIDER ||
+        e.key === STORAGE_KEYS.STT_PROVIDER_VARIABLES ||
         e.key === STORAGE_KEYS.SYSTEM_PROMPT ||
         e.key === STORAGE_KEYS.SCREENSHOT_CONFIG ||
         e.key === STORAGE_KEYS.CUSTOMIZABLE ||
@@ -493,7 +608,10 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     if (selectedAIProvider.provider) {
       safeLocalStorage.setItem(
         STORAGE_KEYS.SELECTED_AI_PROVIDER,
-        JSON.stringify(selectedAIProvider)
+        JSON.stringify({
+          ...selectedAIProvider,
+          variables: stripSecretProviderVariables(selectedAIProvider.variables),
+        })
       );
     }
   }, [selectedAIProvider]);
@@ -503,7 +621,10 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     if (selectedSttProvider.provider) {
       safeLocalStorage.setItem(
         STORAGE_KEYS.SELECTED_STT_PROVIDER,
-        JSON.stringify(selectedSttProvider)
+        JSON.stringify({
+          ...selectedSttProvider,
+          variables: stripSecretProviderVariables(selectedSttProvider.variables),
+        })
       );
     }
   }, [selectedSttProvider]);
@@ -544,11 +665,27 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       }
     }
 
+    const mergedVariables =
+      provider === selectedAIProvider.provider
+        ? variables
+        : mergeProviderVariables(variables, getSavedProviderVariables("ai", provider));
+
+    saveProviderVariables("ai", provider, mergedVariables);
+
     setSelectedAIProvider((prev) => ({
       ...prev,
       provider,
-      variables,
+      variables: mergedVariables,
     }));
+
+    if (provider !== selectedAIProvider.provider) {
+      void hydrateSelectedProviderApiKey(
+        "ai",
+        provider,
+        mergedVariables.api_key || "",
+        setSelectedAIProvider
+      );
+    }
   };
 
   // Setter for selected STT with validation
@@ -564,7 +701,30 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       return;
     }
 
-    setSelectedSttProvider((prev) => ({ ...prev, provider, variables }));
+    const mergedVariables =
+      provider === selectedSttProvider.provider
+        ? variables
+        : mergeProviderVariables(
+            variables,
+            getSavedProviderVariables("stt", provider)
+          );
+
+    saveProviderVariables("stt", provider, mergedVariables);
+
+    setSelectedSttProvider((prev) => ({
+      ...prev,
+      provider,
+      variables: mergedVariables,
+    }));
+
+    if (provider !== selectedSttProvider.provider) {
+      void hydrateSelectedProviderApiKey(
+        "stt",
+        provider,
+        mergedVariables.api_key || "",
+        setSelectedSttProvider
+      );
+    }
   };
 
   // Toggle handlers

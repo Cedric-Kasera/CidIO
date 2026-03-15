@@ -19,14 +19,17 @@ export const ErrorLayout = ({ isCompact }: { isCompact?: boolean }) => {
       </div>
     </Card>
   ) : (
-    <div className="relative flex flex-col h-screen w-screen justify-center items-center overflow-hidden bg-background">
+    <div
+      className="relative flex flex-col h-screen w-screen justify-center items-center overflow-hidden bg-background"
+      style={{ backgroundColor: "var(--app-background)" }}
+    >
       <div className="flex flex-col justify-center items-center gap-8 max-w-[600px] px-4 animate-fadeIn">
         <div className="absolute top-1/4 left-0 right-0 flex justify-center items-center transform hover:scale-105 transition-transform duration-200">
           <div className="flex h-16 items-center px-4 pt-10 gap-2">
             <div className="flex size-6 items-center justify-center rounded-lg bg-foreground">
               <SparklesIcon className="size-4 text-background" />
             </div>
-            <h1 className="text-md font-semibold text-foreground">Pluely</h1>
+            <h1 className="text-md font-semibold text-foreground">CidIO</h1>
           </div>
         </div>
 

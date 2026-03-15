@@ -3,7 +3,7 @@ use tauri::LogicalPosition;
 use tauri::{App, AppHandle, Manager, Runtime, WebviewWindow, WebviewWindowBuilder};
 
 // The offset from the top of the screen to the window
-const TOP_OFFSET: i32 = 54;
+const TOP_OFFSET: i32 = 30;
 
 /// Sets up the main window with custom positioning
 pub fn setup_main_window(app: &mut App) -> Result<(), Box<dyn std::error::Error>> {
@@ -155,7 +155,7 @@ pub fn create_dashboard_window<R: Runtime>(
 
     #[cfg(target_os = "macos")]
     let base_builder = base_builder
-        .title("Pluely - Dashboard")
+        .title("CidIO - Dashboard")
         .center()
         .decorations(true)
         .inner_size(1200.0, 800.0)
@@ -163,12 +163,12 @@ pub fn create_dashboard_window<R: Runtime>(
         .hidden_title(true)
         .title_bar_style(tauri::TitleBarStyle::Overlay)
         .content_protected(true)
-        .visible(true)
+        .visible(false)
         .traffic_light_position(LogicalPosition::new(14.0, 18.0));
 
     #[cfg(not(target_os = "macos"))]
     let base_builder = base_builder
-        .title("Pluely - Dashboard")
+        .title("CidIO - Dashboard")
         .center()
         .decorations(true)
         .inner_size(800.0, 600.0)
@@ -178,25 +178,7 @@ pub fn create_dashboard_window<R: Runtime>(
 
     let window = base_builder.build()?;
 
-    // Set up close event handler - hide window instead of destroying it
-    setup_dashboard_close_handler(&window);
-
     Ok(window)
-}
-
-/// Sets up the close event handler for the dashboard window
-fn setup_dashboard_close_handler<R: Runtime>(window: &WebviewWindow<R>) {
-    let window_clone = window.clone();
-    window.on_window_event(move |event| {
-        if let tauri::WindowEvent::CloseRequested { api, .. } = event {
-            // Prevent the window from being destroyed
-            api.prevent_close();
-            // Hide the window instead
-            if let Err(e) = window_clone.hide() {
-                eprintln!("Failed to hide dashboard window on close: {}", e);
-            }
-        }
-    });
 }
 
 /// Shows the dashboard window and brings it to focus
