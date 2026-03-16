@@ -3,6 +3,7 @@ import {
   AlwaysOnTopToggle,
   AppIconToggle,
   AutostartToggle,
+  ScreenShareProtectionToggle,
 } from "./components";
 import { PageLayout } from "@/layouts";
 
@@ -17,6 +18,9 @@ const Settings = () => {
 
       {/* App Icon Toggle */}
       <AppIconToggle />
+
+      {/* Screen Share Protection Toggle */}
+      <ScreenShareProtectionToggle />
 
       {/* Always On Top Toggle */}
       <AlwaysOnTopToggle />

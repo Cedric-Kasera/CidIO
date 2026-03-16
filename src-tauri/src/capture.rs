@@ -1,4 +1,5 @@
 use base64::Engine;
+use crate::window::is_screen_share_protection_enabled;
 use image::codecs::png::PngEncoder;
 use image::{ColorType, GenericImageView, ImageEncoder};
 use serde::{Deserialize, Serialize};
@@ -207,6 +208,7 @@ fn create_capture_overlays(
                 .visible(false)
                 .focused(true)
                 .accept_first_mouse(true)
+                .content_protected(is_screen_share_protection_enabled(app))
                 .build()
                 .map_err(|e| format!("Failed to create overlay window {}: {}", idx, e))?;
 

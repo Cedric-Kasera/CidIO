@@ -12,6 +12,7 @@ import {
   updateAppIconVisibility,
   updateAlwaysOnTop,
   updateAutostart,
+  updateScreenShareProtection,
   CustomizableState,
   DEFAULT_CUSTOMIZABLE_STATE,
   CursorType,
@@ -379,7 +380,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       // check if we need to update the schema
       try {
         const parsed = JSON.parse(stored);
-        if (!parsed.autostart) {
+        if (!parsed.autostart || !parsed.screenShareProtection) {
           // save the merged state with new autostart property
           setCustomizableState(customizableState);
           updateCursor(customizableState.cursor.type || "invisible");
@@ -468,6 +469,9 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         await Promise.all([
           invoke("set_app_icon_visibility", {
             visible: customizable.appIcon.isVisible,
+          }),
+          invoke("set_screen_share_protection", {
+            enabled: customizable.screenShareProtection.isEnabled,
           }),
           invoke("set_always_on_top", {
             enabled: customizable.alwaysOnTop.isEnabled,
@@ -750,6 +754,19 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
+  const toggleScreenShareProtection = async (isEnabled: boolean) => {
+    const newState = updateScreenShareProtection(isEnabled);
+    setCustomizable(newState);
+    try {
+      await invoke("set_screen_share_protection", { enabled: isEnabled });
+      loadData();
+    } catch (error) {
+      console.error("Failed to toggle screen share protection:", error);
+      const revertedState = updateScreenShareProtection(!isEnabled);
+      setCustomizable(revertedState);
+    }
+  };
+
   const toggleAutostart = async (isEnabled: boolean) => {
     const newState = updateAutostart(isEnabled);
     setCustomizable(newState);
@@ -828,6 +845,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     setScreenshotConfiguration,
     customizable,
     toggleAppIconVisibility,
+    toggleScreenShareProtection,
     toggleAlwaysOnTop,
     toggleAutostart,
     loadData,

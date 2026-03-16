@@ -6,6 +6,9 @@ export interface CustomizableState {
   appIcon: {
     isVisible: boolean;
   };
+  screenShareProtection: {
+    isEnabled: boolean;
+  };
   alwaysOnTop: {
     isEnabled: boolean;
   };
@@ -19,6 +22,7 @@ export interface CustomizableState {
 
 export const DEFAULT_CUSTOMIZABLE_STATE: CustomizableState = {
   appIcon: { isVisible: true },
+  screenShareProtection: { isEnabled: true },
   alwaysOnTop: { isEnabled: false },
   autostart: { isEnabled: true },
   cursor: { type: "invisible" },
@@ -38,6 +42,9 @@ export const getCustomizableState = (): CustomizableState => {
 
     return {
       appIcon: parsedState.appIcon || DEFAULT_CUSTOMIZABLE_STATE.appIcon,
+      screenShareProtection:
+        parsedState.screenShareProtection ||
+        DEFAULT_CUSTOMIZABLE_STATE.screenShareProtection,
       alwaysOnTop:
         parsedState.alwaysOnTop || DEFAULT_CUSTOMIZABLE_STATE.alwaysOnTop,
       autostart: parsedState.autostart || DEFAULT_CUSTOMIZABLE_STATE.autostart,
@@ -68,6 +75,18 @@ export const updateAppIconVisibility = (
 ): CustomizableState => {
   const currentState = getCustomizableState();
   const newState = { ...currentState, appIcon: { isVisible } };
+  setCustomizableState(newState);
+  return newState;
+};
+
+/**
+ * Update screen share protection state
+ */
+export const updateScreenShareProtection = (
+  isEnabled: boolean
+): CustomizableState => {
+  const currentState = getCustomizableState();
+  const newState = { ...currentState, screenShareProtection: { isEnabled } };
   setCustomizableState(newState);
   return newState;
 };

@@ -1,9 +1,45 @@
 #[cfg(target_os = "macos")]
 use tauri::LogicalPosition;
+use std::sync::Mutex;
 use tauri::{App, AppHandle, Manager, Runtime, WebviewWindow, WebviewWindowBuilder};
 
 // The offset from the top of the screen to the window
 const TOP_OFFSET: i32 = 30;
+
+#[derive(Default)]
+pub struct ScreenShareProtectionState {
+    pub enabled: Mutex<bool>,
+}
+
+pub fn is_screen_share_protection_enabled<R: Runtime>(app: &AppHandle<R>) -> bool {
+    app.state::<ScreenShareProtectionState>()
+        .enabled
+        .lock()
+        .map(|guard| *guard)
+        .unwrap_or(true)
+}
+
+pub fn apply_screen_share_protection<R: Runtime>(
+    app: &AppHandle<R>,
+    enabled: bool,
+) -> Result<(), String> {
+    let protection_state = app.state::<ScreenShareProtectionState>();
+    {
+        let mut protection = protection_state
+            .enabled
+            .lock()
+            .map_err(|_| "Failed to update screen share protection state".to_string())?;
+        *protection = enabled;
+    }
+
+    for (_, window) in app.webview_windows() {
+        window
+            .set_content_protected(enabled)
+            .map_err(|e| format!("Failed to update screen share protection: {}", e))?;
+    }
+
+    Ok(())
+}
 
 /// Sets up the main window with custom positioning
 pub fn setup_main_window(app: &mut App) -> Result<(), Box<dyn std::error::Error>> {
@@ -81,6 +117,14 @@ pub fn set_window_height(window: tauri::WebviewWindow, height: u32) -> Result<()
         .map_err(|e| format!("Failed to resize window: {}", e))?;
 
     Ok(())
+}
+
+#[tauri::command]
+pub fn set_screen_share_protection<R: Runtime>(
+    app: tauri::AppHandle<R>,
+    enabled: bool,
+) -> Result<(), String> {
+    apply_screen_share_protection(&app, enabled)
 }
 
 #[tauri::command]
@@ -162,7 +206,7 @@ pub fn create_dashboard_window<R: Runtime>(
         .min_inner_size(800.0, 600.0)
         .hidden_title(true)
         .title_bar_style(tauri::TitleBarStyle::Overlay)
-        .content_protected(true)
+        .content_protected(is_screen_share_protection_enabled(app))
         .visible(false)
         .traffic_light_position(LogicalPosition::new(14.0, 18.0));
 
@@ -173,7 +217,7 @@ pub fn create_dashboard_window<R: Runtime>(
         .decorations(true)
         .inner_size(800.0, 600.0)
         .min_inner_size(800.0, 600.0)
-        .content_protected(true)
+        .content_protected(is_screen_share_protection_enabled(app))
         .visible(false);
 
     let window = base_builder.build()?;
