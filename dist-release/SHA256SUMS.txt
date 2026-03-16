@@ -1,0 +1,3 @@
+e01cdfd686dacf29fcb063456def3b97a3a2ee7ebc45e28caec87125650a2096  CidIO_0.1.9_amd64.AppImage
+87fbbd3a63a24ef2d92eb01c0c16b198aa4229614b2b92a715e343687dff1abf  CidIO_0.1.9_amd64.deb
+f99aae4dacb03b1b121e907a58aade5d9d578ef7f53ee0dd0e4b8abed4281a97  CidIO_0.1.9_amd64.tar.gz

@@ -1,12 +1,33 @@
-name: "publish"
+name: Release
 
 on:
   push:
-    branches:
-      - master
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      tag_name:
+        description: "Git tag to publish, for example v0.1.10. Leave empty to use v__VERSION__."
+        required: false
+        type: string
+      draft:
+        description: "Create the GitHub release as a draft."
+        required: false
+        default: false
+        type: boolean
+      prerelease:
+        description: "Mark the GitHub release as a prerelease."
+        required: false
+        default: false
+        type: boolean
+
+concurrency:
+  group: release-${{ github.event_name }}-${{ github.event_name == 'push' && github.ref_name || github.run_id }}
+  cancel-in-progress: false
 
 jobs:
   publish-tauri:
+    name: Build and publish (${{ matrix.platform }})
     permissions:
       contents: write
     strategy:
@@ -23,29 +44,74 @@ jobs:
             args: ""
 
     runs-on: ${{ matrix.platform }}
+
     steps:
+      - name: Resolve release metadata
+        id: release_meta
+        shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          INPUT_TAG_NAME: ${{ github.event.inputs.tag_name }}
+          INPUT_DRAFT: ${{ github.event.inputs.draft }}
+          INPUT_PRERELEASE: ${{ github.event.inputs.prerelease }}
+          REF_NAME: ${{ github.ref_name }}
+        run: |
+          if [[ "$EVENT_NAME" == "workflow_dispatch" ]]; then
+            tag_name="$INPUT_TAG_NAME"
+            if [[ -z "$tag_name" ]]; then
+              tag_name="v__VERSION__"
+            fi
+            draft="${INPUT_DRAFT:-false}"
+            prerelease="${INPUT_PRERELEASE:-false}"
+          else
+            tag_name="$REF_NAME"
+            draft="false"
+            prerelease="false"
+          fi
+
+          echo "tag_name=$tag_name" >> "$GITHUB_OUTPUT"
+          echo "draft=$draft" >> "$GITHUB_OUTPUT"
+          echo "prerelease=$prerelease" >> "$GITHUB_OUTPUT"
+
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: lts/*
+          cache: npm
 
       - name: Install Rust stable
         uses: dtolnay/rust-toolchain@stable
         with:
           targets: ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
 
+      - name: Cache Rust artifacts
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: "./src-tauri -> target"
+
       - name: Install system deps (Ubuntu)
         if: matrix.platform == 'ubuntu-22.04'
         run: |
           sudo apt-get update
           sudo apt-get install -y \
-            libwebkit2gtk-4.0-dev libwebkit2gtk-4.1-dev \
-            librsvg2-dev patchelf libgtk-3-dev pkg-config \
-            libasound2-dev libpulse-dev fuse libfuse2 squashfs-tools \
-            xz-utils wget file libglib2.0-dev libgdk-pixbuf2.0-dev libcairo-gobject2 \
-            libayatana-appindicator3-dev ca-certificates binutils
+            libwebkit2gtk-4.1-dev \
+            libgtk-3-dev \
+            libglib2.0-dev \
+            libsoup-3.0-dev \
+            libjavascriptcoregtk-4.1-dev \
+            libpulse-dev \
+            libdbus-1-dev \
+            libayatana-appindicator3-dev \
+            librsvg2-dev \
+            patchelf \
+            libfuse2 \
+            squashfs-tools \
+            xz-utils \
+            ca-certificates
           sudo update-ca-certificates -f
 
       - name: Create environment file
@@ -58,8 +124,8 @@ jobs:
       - name: Install frontend deps
         run: npm ci
 
-      - name: Build & publish
-        uses: tauri-apps/tauri-action@v0.5.16
+      - name: Build and publish release
+        uses: tauri-apps/tauri-action@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
@@ -69,11 +135,15 @@ jobs:
           APP_ENDPOINT: ${{ secrets.APP_ENDPOINT }}
           POSTHOG_API_KEY: ${{ secrets.POSTHOG_API_KEY }}
         with:
-          tagName: app-v__VERSION__
-          releaseName: "Pluely v__VERSION__"
-          releaseBody: "Download binaries for your OS. macOS users: If blocked, go to System Settings > Privacy & Security > Security section, find 'pluely was blocked' message, click 'Allow Anyway', then reopen the app."
-          releaseDraft: true
-          prerelease: false
-          includeUpdaterJson: true
+          tagName: ${{ steps.release_meta.outputs.tag_name }}
+          releaseName: "CidIO ${{ steps.release_meta.outputs.tag_name }}"
+          releaseBody: "Automated desktop bundles for this release."
+          releaseCommitish: ${{ github.sha }}
+          releaseDraft: ${{ steps.release_meta.outputs.draft == 'true' }}
+          prerelease: ${{ steps.release_meta.outputs.prerelease == 'true' }}
+          generateReleaseNotes: true
+          uploadUpdaterJson: true
+          uploadUpdaterSignatures: true
           updaterJsonPreferNsis: true
+          retryAttempts: 2
           args: ${{ matrix.args }}

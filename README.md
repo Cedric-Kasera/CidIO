@@ -465,6 +465,19 @@ This creates platform-specific installers in `src-tauri/target/release/bundle/`:
 - **Windows**: `.msi`, `.exe`
 - **Linux**: `.deb`, `.rpm`, `.AppImage`
 
+### Publish a Release
+
+GitHub Actions publishes a release when you push a version tag:
+
+```bash
+git tag vX.Y.Z
+git push origin vX.Y.Z
+```
+
+The release workflow builds the desktop bundles for each supported platform and uploads them to the matching GitHub Release.
+
+Required repository secrets: `TAURI_SIGNING_PRIVATE_KEY`, `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`, `API_ACCESS_KEY`, `PAYMENT_ENDPOINT`, `APP_ENDPOINT`, and `POSTHOG_API_KEY`.
+
 ---
 
 ## Contributing
